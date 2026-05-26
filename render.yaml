@@ -1,9 +1,11 @@
 services:
   - type: web
     name: resource-hubz-forum
-    env: docker
+    runtime: docker
     plan: starter
-    autoDeploy: true
+    autoDeployTrigger: commit
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /api/health
     disk:
       name: resource-hubz-data
