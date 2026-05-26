@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: resource-hubz-forum
+    env: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /api/health
+    disk:
+      name: resource-hubz-data
+      mountPath: /app/data
+      sizeGB: 1
