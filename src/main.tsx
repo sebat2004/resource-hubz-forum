@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { createRoot } from "react-dom/client";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { createClient } from "@supabase/supabase-js";
 import {
   ArrowBigDown,
   ArrowBigUp,
@@ -60,6 +61,11 @@ const anonymousNames = [
   "Community Member",
   "Kind Stranger"
 ];
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined;
+const supabase =
+  supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
 function cn(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -141,6 +147,218 @@ function api<T>(path: string, options?: RequestInit): Promise<T> {
   });
 }
 
+type CategoryRow = {
+  id: string;
+  name: string;
+  description: string;
+  accent: string;
+  illustration?: string;
+  sort_order?: number;
+};
+
+type ReplyRow = {
+  id: number;
+  post_id: number;
+  body: string;
+  author_name: string;
+  created_at: string;
+};
+
+type PostRow = {
+  id: number;
+  category_id: string;
+  title: string;
+  body: string;
+  author_name: string;
+  created_at: string;
+  votes: number;
+  categories?: { name: string; accent: string } | null;
+  replies?: Array<Pick<ReplyRow, "id" | "created_at">>;
+};
+
+function mapSupabasePost(row: PostRow): Post {
+  const replies = row.replies ?? [];
+  const lastReply = replies
+    .map((reply) => reply.created_at)
+    .sort()
+    .at(-1);
+
+  return {
+    id: row.id,
+    categoryId: row.category_id,
+    categoryName: row.categories?.name ?? "Resource",
+    categoryAccent: row.categories?.accent ?? "#71717a",
+    title: row.title,
+    body: row.body,
+    authorName: row.author_name,
+    createdAt: row.created_at,
+    votes: row.votes,
+    replyCount: replies.length,
+    lastActivity: lastReply && lastReply > row.created_at ? lastReply : row.created_at
+  };
+}
+
+function mapSupabaseReply(row: ReplyRow): Reply {
+  return {
+    id: row.id,
+    postId: row.post_id,
+    body: row.body,
+    authorName: row.author_name,
+    createdAt: row.created_at
+  };
+}
+
+async function fetchCategories() {
+  if (!supabase) return api<Category[]>("/api/categories");
+
+  const [{ data: categories, error: categoriesError }, { data: posts, error: postsError }, { data: replies, error: repliesError }] =
+    await Promise.all([
+      supabase.from("categories").select("*").order("sort_order", { ascending: true }),
+      supabase.from("posts").select("id, category_id, created_at"),
+      supabase.from("replies").select("post_id, created_at")
+    ]);
+
+  if (categoriesError) throw categoriesError;
+  if (postsError) throw postsError;
+  if (repliesError) throw repliesError;
+
+  return (categories as CategoryRow[]).map((category) => {
+    const categoryPosts = (posts ?? []).filter((post) => post.category_id === category.id);
+    const postIds = new Set(categoryPosts.map((post) => post.id));
+    const categoryReplies = (replies ?? []).filter((reply) => postIds.has(reply.post_id));
+    const lastActivity =
+      [...categoryPosts.map((post) => post.created_at), ...categoryReplies.map((reply) => reply.created_at)]
+        .filter(Boolean)
+        .sort()
+        .at(-1) ?? null;
+
+    return {
+      id: category.id,
+      name: category.name,
+      description: category.description,
+      accent: category.accent,
+      postCount: categoryPosts.length,
+      replyCount: categoryReplies.length,
+      lastActivity
+    };
+  });
+}
+
+async function fetchPosts(query = "") {
+  if (!supabase) {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    return api<Post[]>(`/api/posts?${params.toString()}`);
+  }
+
+  let request = supabase
+    .from("posts")
+    .select("*, categories(name, accent), replies(id, created_at)")
+    .order("created_at", { ascending: false });
+
+  if (query.trim()) {
+    const search = query.trim().replaceAll(",", " ");
+    request = request.or(`title.ilike.%${search}%,body.ilike.%${search}%`);
+  }
+
+  const { data, error } = await request;
+  if (error) throw error;
+  return (data as PostRow[]).map(mapSupabasePost).sort((a, b) => b.lastActivity.localeCompare(a.lastActivity));
+}
+
+async function fetchPost(postId: number) {
+  if (!supabase) return api<PostDetail>(`/api/posts/${postId}`);
+
+  const [{ data: post, error: postError }, { data: replies, error: repliesError }] = await Promise.all([
+    supabase
+      .from("posts")
+      .select("*, categories(name, accent), replies(id, created_at)")
+      .eq("id", postId)
+      .single(),
+    supabase.from("replies").select("*").eq("post_id", postId).order("created_at", { ascending: true })
+  ]);
+
+  if (postError) throw postError;
+  if (repliesError) throw repliesError;
+
+  return {
+    ...mapSupabasePost(post as PostRow),
+    replies: (replies as ReplyRow[]).map(mapSupabaseReply)
+  };
+}
+
+async function createPost(payload: NewPost & { authorName: string }) {
+  if (!supabase) {
+    return api<Post>("/api/posts", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  }
+
+  const { data, error } = await supabase
+    .from("posts")
+    .insert({
+      category_id: payload.categoryId,
+      title: payload.title.trim(),
+      body: payload.body.trim(),
+      author_name: payload.authorName
+    })
+    .select("*, categories(name, accent), replies(id, created_at)")
+    .single();
+
+  if (error) throw error;
+  return mapSupabasePost(data as PostRow);
+}
+
+async function createReply(postId: number, body: string, authorName: string) {
+  if (!supabase) {
+    return api<Reply>(`/api/posts/${postId}/replies`, {
+      method: "POST",
+      body: JSON.stringify({ body, authorName })
+    });
+  }
+
+  const { data, error } = await supabase
+    .from("replies")
+    .insert({
+      post_id: postId,
+      body: body.trim(),
+      author_name: authorName
+    })
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return mapSupabaseReply(data as ReplyRow);
+}
+
+async function votePost(postId: number, delta: 1 | -1) {
+  if (!supabase) {
+    return api<{ votes: number }>(`/api/posts/${postId}/vote`, {
+      method: "POST",
+      body: JSON.stringify({ delta })
+    });
+  }
+
+  const { data: post, error: fetchError } = await supabase
+    .from("posts")
+    .select("votes")
+    .eq("id", postId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  const { data, error } = await supabase
+    .from("posts")
+    .update({ votes: (post.votes ?? 0) + delta })
+    .eq("id", postId)
+    .select("votes")
+    .single();
+
+  if (error) throw error;
+  return { votes: data.votes };
+}
+
 function getAnonymousName() {
   const stored = localStorage.getItem("resource-hubz-name");
   if (stored) return stored;
@@ -194,13 +412,11 @@ function App() {
   }, []);
 
   useEffect(() => {
-    api<Category[]>("/api/categories").then(setCategories).catch((err) => setError(err.message));
+    fetchCategories().then(setCategories).catch((err) => setError(err.message));
   }, []);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (query) params.set("q", query);
-    api<Post[]>(`/api/posts?${params.toString()}`).then(setPosts).catch((err) => setError(err.message));
+    fetchPosts(query).then(setPosts).catch((err) => setError(err.message));
   }, [query]);
 
   useEffect(() => {
@@ -208,7 +424,7 @@ function App() {
       setSelectedPost(null);
       return;
     }
-    api<PostDetail>(`/api/posts/${selectedPostId}`).then(setSelectedPost).catch((err) => setError(err.message));
+    fetchPost(selectedPostId).then(setSelectedPost).catch((err) => setError(err.message));
   }, [selectedPostId]);
 
   const filteredPosts = useMemo(() => {
@@ -226,9 +442,9 @@ function App() {
 
   async function refreshAfterChange(postId: number) {
     const [nextCategories, nextPosts, detail] = await Promise.all([
-      api<Category[]>("/api/categories"),
-      api<Post[]>("/api/posts"),
-      api<PostDetail>(`/api/posts/${postId}`)
+      fetchCategories(),
+      fetchPosts(query),
+      fetchPost(postId)
     ]);
     setCategories(nextCategories);
     setPosts(nextPosts);
@@ -257,10 +473,7 @@ function App() {
     setError("");
     setModalError("");
     try {
-      const created = await api<Post>("/api/posts", {
-        method: "POST",
-        body: JSON.stringify({ ...newPost, authorName })
-      });
+      const created = await createPost({ ...newPost, authorName });
       setIsComposerOpen(false);
       setNewPost({ categoryId: "", title: "", body: "" });
       await refreshAfterChange(created.id);
@@ -278,10 +491,7 @@ function App() {
     setError("");
     setModalError("");
     try {
-      await api<Reply>(`/api/posts/${selectedPost.id}/replies`, {
-        method: "POST",
-        body: JSON.stringify({ body: replyBody, authorName })
-      });
+      await createReply(selectedPost.id, replyBody, authorName);
       setReplyBody("");
       await refreshAfterChange(selectedPost.id);
     } catch (err) {
@@ -292,10 +502,7 @@ function App() {
   }
 
   async function vote(postId: number, delta: 1 | -1) {
-    await api<{ votes: number }>(`/api/posts/${postId}/vote`, {
-      method: "POST",
-      body: JSON.stringify({ delta })
-    });
+    await votePost(postId, delta);
     await refreshAfterChange(postId);
   }
 

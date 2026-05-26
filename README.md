@@ -29,6 +29,26 @@ npm start
 
 Host the app somewhere that supports a long-running Node server and persistent disk storage for `data/resource-hubz.sqlite`. Then embed the hosted URL in Google Sites with **Embed > By URL**.
 
+## Free Vercel + Supabase Deploy
+
+For a free deployment, use Vercel for the static React app and Supabase for the database.
+
+1. In Supabase, open **SQL Editor** and run `supabase-schema.sql`.
+2. In Vercel, import this project.
+3. Add these Vercel environment variables:
+
+```bash
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key_here
+```
+
+4. Use the default Vite settings:
+   - Build command: `npm run build`
+   - Output directory: `dist`
+5. Deploy and embed the Vercel URL in Google Sites.
+
+Do not add your Supabase secret key to Vercel for this static version.
+
 ## Deploy on Render
 
 This repo includes a `Dockerfile` and `render.yaml` blueprint. Render is a good fit because the app needs a Node server plus persistent disk storage for SQLite.
