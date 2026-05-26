@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { createClient } from "@supabase/supabase-js";
 import {
-  ArrowBigDown,
-  ArrowBigUp,
   MessageCircle,
   Plus,
   Search,
@@ -352,27 +350,6 @@ async function createReply(
   return mapSupabaseReply(data as ReplyRow);
 }
 
-async function votePost(postId: number, delta: 1 | -1) {
-  if (!supabase) throw new Error("Supabase is not configured.");
-
-  const { data: post, error: fetchError } = await supabase
-    .from("posts")
-    .select("votes")
-    .eq("id", postId)
-    .single();
-
-  if (fetchError) throw fetchError;
-
-  const { data, error } = await supabase
-    .from("posts")
-    .update({ votes: (post.votes ?? 0) + delta })
-    .eq("id", postId)
-    .select("votes")
-    .single();
-
-  if (error) throw error;
-  return { votes: data.votes };
-}
 
 function getAnonymousName() {
   const stored = localStorage.getItem("resource-hubz-name");
@@ -533,11 +510,6 @@ export default function Forum() {
     }
   }
 
-  async function vote(postId: number, delta: 1 | -1) {
-    await votePost(postId, delta);
-    await refreshAfterChange(postId);
-  }
-
   return (
     <main className="app-shell">
       <section className="search-section" aria-label="Forum search and filters">
@@ -606,30 +578,6 @@ export default function Forum() {
               }
             }}
           >
-            <div className="vote-stack">
-              <Button
-                variant="ghost"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  vote(post.id, 1);
-                }}
-                aria-label="Upvote"
-              >
-                <ArrowBigUp size={19} />
-              </Button>
-              <strong>{post.votes}</strong>
-              <Button
-                variant="ghost"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  vote(post.id, -1);
-                }}
-                aria-label="Downvote"
-              >
-                <ArrowBigDown size={19} />
-              </Button>
-            </div>
-
             <div className="post-copy">
               <span
                 className="category-chip"

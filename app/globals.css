@@ -229,8 +229,8 @@ button {
 
 .post-card {
   display: grid;
-  grid-template-columns: 46px 1fr;
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 0;
   padding: 18px;
   outline: 0;
 }
@@ -311,14 +311,16 @@ button {
 .avatar {
   width: 28px;
   height: 28px;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--secondary);
   color: var(--foreground);
   font-size: 0.68rem;
   font-weight: 800;
+  line-height: 1;
 }
 
 .empty-card {
