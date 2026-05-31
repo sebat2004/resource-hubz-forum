@@ -4,12 +4,59 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { createClient } from "@supabase/supabase-js";
 import {
+  ChevronDown,
+  Globe,
   MessageCircle,
   Plus,
   Search,
   Send,
   X,
 } from "lucide-react";
+
+const LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "es", label: "Español" },
+  { code: "fr", label: "Français" },
+  { code: "ar", label: "العربية" },
+  { code: "zh-CN", label: "中文 (简体)" },
+  { code: "ht", label: "Kreyòl ayisyen" },
+  { code: "pt", label: "Português" },
+  { code: "ru", label: "Русский" },
+  { code: "vi", label: "Tiếng Việt" },
+  { code: "tl", label: "Tagalog" },
+  { code: "so", label: "Soomaali" },
+  { code: "hi", label: "हिन्दी" },
+  { code: "ko", label: "한국어" },
+  { code: "am", label: "አማርኛ" },
+  { code: "de", label: "Deutsch" },
+];
+
+function translatePage(langCode: string) {
+  if (langCode === "en") {
+    // Reset to original language
+    const frame = document.querySelector<HTMLIFrameElement>(
+      ".goog-te-banner-frame"
+    );
+    if (frame) {
+      const restoreBtn =
+        frame.contentDocument?.querySelector<HTMLElement>("#restore");
+      restoreBtn?.click();
+    }
+    // Fallback: reload without translate cookie
+    const cookie = document.cookie.match(/googtrans=([^;]+)/);
+    if (cookie) {
+      document.cookie =
+        "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      window.location.reload();
+    }
+    return;
+  }
+  const select = document.querySelector<HTMLSelectElement>(".goog-te-combo");
+  if (select) {
+    select.value = langCode;
+    select.dispatchEvent(new Event("change"));
+  }
+}
 
 type Category = {
   id: string;
@@ -403,6 +450,8 @@ export default function Forum() {
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const [activeLang, setActiveLang] = useState("en");
+  const [isLangOpen, setIsLangOpen] = useState(false);
 
   useEffect(() => {
     setAuthorName(getAnonymousName());
@@ -513,14 +562,56 @@ export default function Forum() {
   return (
     <main className="app-shell">
       <section className="search-section" aria-label="Forum search and filters">
-        <label className="search-field">
-          <Search size={18} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search anonymous posts"
-          />
-        </label>
+        <div className="search-row">
+          <label className="search-field">
+            <Search size={18} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search anonymous posts"
+            />
+          </label>
+
+          <div className="lang-picker">
+            <button
+              className="lang-trigger"
+              onClick={() => setIsLangOpen((o) => !o)}
+              aria-label="Translate page"
+              aria-expanded={isLangOpen}
+            >
+              <Globe size={16} />
+              <span>{LANGUAGES.find((l) => l.code === activeLang)?.label ?? "English"}</span>
+              <ChevronDown size={14} className={isLangOpen ? "chevron-open" : ""} />
+            </button>
+
+            {isLangOpen && (
+              <>
+                <div
+                  className="lang-backdrop"
+                  onClick={() => setIsLangOpen(false)}
+                />
+                <ul className="lang-dropdown" role="listbox">
+                  {LANGUAGES.map((lang) => (
+                    <li key={lang.code}>
+                      <button
+                        role="option"
+                        aria-selected={lang.code === activeLang}
+                        className={lang.code === activeLang ? "lang-option lang-option-active" : "lang-option"}
+                        onClick={() => {
+                          setActiveLang(lang.code);
+                          translatePage(lang.code);
+                          setIsLangOpen(false);
+                        }}
+                      >
+                        {lang.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </div>
 
         <div className="tag-row" aria-label="Filter by category">
           {categories.map((category) => (

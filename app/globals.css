@@ -52,10 +52,120 @@ button {
   padding: 24px 18px 42px;
 }
 
+/* ── Google Translate toolbar suppression ── */
+.goog-te-banner-frame,
+.goog-te-balloon-frame {
+  display: none !important;
+}
+body {
+  top: 0 !important;
+}
+.skiptranslate > iframe {
+  display: none !important;
+}
+
 .search-section {
   display: grid;
   gap: 14px;
   margin-bottom: 24px;
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.search-row .search-field {
+  flex: 1;
+}
+
+/* ── Language picker ── */
+.lang-picker {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.lang-trigger {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  background: var(--secondary);
+  color: var(--foreground);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.lang-trigger:hover {
+  border-color: #c7c7d1;
+}
+
+.lang-trigger:focus-visible {
+  outline: none;
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.1);
+}
+
+.lang-trigger .chevron-open {
+  transform: rotate(180deg);
+}
+
+.lang-trigger svg {
+  color: var(--muted-foreground);
+  transition: transform 160ms ease;
+}
+
+.lang-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.lang-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+  box-shadow: 0 8px 32px rgba(9, 9, 11, 0.14);
+}
+
+.lang-option {
+  width: 100%;
+  display: block;
+  padding: 8px 10px;
+  border: none;
+  border-radius: calc(var(--radius) - 4px);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.lang-option:hover {
+  background: var(--secondary);
+}
+
+.lang-option-active {
+  background: var(--secondary);
+  font-weight: 700;
 }
 
 .search-field {
@@ -547,9 +657,19 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
-  .vote-stack {
-    display: flex;
-    justify-content: flex-start;
+  .search-row {
+    flex-direction: column;
+  }
+
+  .lang-trigger {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .lang-dropdown {
+    left: 0;
+    right: 0;
+    width: 100%;
   }
 }
 
